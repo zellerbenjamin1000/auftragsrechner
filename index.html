@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auftragsrechner Haus &amp; Garten</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1F3A93">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --paper:#FBFBF7; --ink:#1F3A93; --graphite:#2A2D34; --line:#C9CCD2;
+  --mark:#F2C230; --soft:#EEF1F8; --muted:#6B7080;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--graphite);
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:16px;line-height:1.4;padding-bottom:130px}
+header{padding:22px 16px 14px;border-bottom:3px solid var(--ink);background:#fff}
+header h1{margin:0;font-size:1.55rem;color:var(--ink);letter-spacing:-.01em}
+header p{margin:4px 0 0;color:var(--muted);font-size:.9rem}
+.wrap{max-width:720px;margin:0 auto}
+label.f{font-size:.78rem;color:var(--muted);display:block;margin-bottom:2px}
+input[type=text],input[type=number],input[type=tel],input[type=email],select,textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff;color:var(--graphite)}
+input[type=number]{width:78px;text-align:right}
+input:focus,select:focus,textarea:focus,button:focus-visible,summary:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+section{margin:14px 12px;background:#fff;border:1px solid var(--line);border-left:5px solid var(--ink);border-radius:2px}
+section h2{margin:0;padding:10px 12px;font-size:1.05rem;color:var(--ink);border-bottom:1px dashed var(--line);display:flex;justify-content:space-between;gap:8px}
+section h2 span{color:var(--graphite);font-weight:600}
+.form{padding:10px 12px;display:grid;gap:8px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.form input,.form select,.form textarea{width:100%;text-align:left}
+.row{display:grid;grid-template-columns:28px 1fr auto;gap:6px 8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--soft)}
+.row:last-child{border-bottom:0}
+.row.on{background:#FFFBEA}
+.row input[type=checkbox]{width:22px;height:22px;accent-color:var(--ink)}
+.name{font-size:.95rem}
+.name small{display:block;color:var(--muted);font-size:.78rem}
+.amt{font-variant-numeric:tabular-nums;font-weight:600;min-width:70px;text-align:right}
+.inputs{grid-column:2 / 4;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:.85rem;color:var(--muted)}
+details{border-bottom:1px dashed var(--line)}
+summary{padding:12px;font-weight:700;color:var(--ink);cursor:pointer}
+.settings{padding:4px 12px 12px;display:grid;grid-template-columns:1fr auto;gap:8px 10px;align-items:center;font-size:.92rem}
+.btns{display:flex;flex-wrap:wrap;gap:8px;padding:12px}
+button{font:inherit;padding:10px 14px;border-radius:4px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer}
+button.primary{background:var(--ink);color:#fff}
+#total{position:fixed;left:0;right:0;bottom:0;background:var(--ink);color:#fff;padding:10px 16px calc(10px + env(safe-area-inset-bottom));border-top:4px solid var(--mark)}
+#total .wrap{display:flex;justify-content:space-between;align-items:center;gap:10px}
+#total .big{font-size:1.6rem;font-weight:700;font-variant-numeric:tabular-nums;display:block}
+#total small{display:block;opacity:.85;font-size:.78rem}
+#total button{background:var(--mark);color:var(--graphite);border-color:var(--mark);font-weight:700}
+#toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:var(--graphite);color:#fff;padding:8px 14px;border-radius:4px;font-size:.9rem;display:none;max-width:90vw;text-align:center}
+.note{font-size:.8rem;color:var(--muted);padding:0 16px}
+@media (prefers-reduced-motion:no-preference){.row{transition:background .15s}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>Auftragsrechner Haus &amp; Garten</h1>
+  <p>Posten ankreuzen, Werte anpassen, Angebot als PDF oder per WhatsApp verschicken.</p>
+</div></header>
+
+<div class="wrap">
+  <section>
+    <h2>Kunde und Auftrag</h2>
+    <div class="form">
+      <div class="two">
+        <div><label class="f" for="m_typ">Dokument</label>
+          <select id="m_typ"><option>Angebot</option><option>Kostenvoranschlag</option></select></div>
+        <div><label class="f" for="m_nr">Nummer</label><input type="text" id="m_nr"></div>
+      </div>
+      <div><label class="f" for="k_name">Kunde</label><input type="text" id="k_name" placeholder="Vor- und Nachname"></div>
+      <div class="two">
+        <div><label class="f" for="k_strasse">Straße, Nr.</label><input type="text" id="k_strasse"></div>
+        <div><label class="f" for="k_ort">PLZ Ort</label><input type="text" id="k_ort" placeholder="33602 Bielefeld"></div>
+      </div>
+      <div><label class="f" for="m_auftrag">Betreff</label><input type="text" id="m_auftrag" placeholder="z. B. Heckenschnitt mit Entsorgung"></div>
+      <div><label class="f" for="m_text">Leistungsbeschreibung für den Kunden (optional)</label>
+        <textarea id="m_text" rows="3" placeholder="z. B. Rückschnitt der Hecke auf 1,80 m, Abtransport des Schnittguts"></textarea></div>
+      <div class="two"><div><label class="f" for="m_tage">Gültig (Tage)</label><input type="number" id="m_tage" value="30" min="1"></div><div></div></div>
+    </div>
+  </section>
+
+  <div id="app"></div>
+
+  <section>
+    <details>
+      <summary>Meine Sätze</summary>
+      <div class="settings">
+        <label for="s_lohn">Stundensatz (€/h)</label><input type="number" id="s_lohn" step="0.5">
+        <label for="s_helfer">Helfer-Stundensatz (€/h)</label><input type="number" id="s_helfer" step="0.5">
+        <label for="s_km">Kilometersatz (€/km)</label><input type="number" id="s_km" step="0.05">
+        <label for="s_aufschlag">Materialaufschlag (%)</label><input type="number" id="s_aufschlag" step="1">
+        <label for="s_mwst">19 % MwSt. ausweisen<br><small style="color:var(--muted)">aus lassen bei Kleinunternehmerregelung</small></label>
+        <input type="checkbox" id="s_mwst" style="width:22px;height:22px;accent-color:var(--ink)">
+      </div>
+    </details>
+    <details>
+      <summary>Firmendaten für das PDF</summary>
+      <div class="form">
+        <div><label class="f" for="f_name">Firmenname</label><input type="text" id="f_name"></div>
+        <div><label class="f" for="f_inhaber">Inhaber</label><input type="text" id="f_inhaber"></div>
+        <div class="two">
+          <div><label class="f" for="f_strasse">Straße, Nr.</label><input type="text" id="f_strasse"></div>
+          <div><label class="f" for="f_ort">PLZ Ort</label><input type="text" id="f_ort"></div>
+        </div>
+        <div class="two">
+          <div><label class="f" for="f_tel">Telefon</label><input type="tel" id="f_tel"></div>
+          <div><label class="f" for="f_mail">E-Mail</label><input type="email" id="f_mail"></div>
+        </div>
+        <div><label class="f" for="f_stnr">Steuernummer (optional)</label><input type="text" id="f_stnr"></div>
+      </div>
+    </details>
+    <div class="btns"><button class="primary" id="save">Sätze und Firmendaten speichern</button></div>
+  </section>
+
+  <div class="btns">
+    <button class="primary" id="pdf">PDF erstellen und teilen</button>
+    <button id="wa">Als Text per WhatsApp</button>
+    <button id="reset">Neuer Auftrag</button>
+  </div>
+  <p class="note">Im PDF und in der WhatsApp-Nachricht sieht der Kunde nur zusammengefasste Posten. Aufschläge, Verschleiß und Erschwernisse stecken im Preis, werden aber nicht einzeln aufgeführt.</p>
+</div>
+
+<div id="total"><div class="wrap">
+  <div><small id="sub">Netto 0,00 €</small><span class="big" id="sum">0,00 €</span><small id="mw"></small></div>
+  <button id="pdf2">PDF teilen</button>
+</div></div>
+<div id="toast"></div>
+
+<script>
+const S = {lohn:45, helfer:30, km:0.50, aufschlag:15, mwst:false};
+const F = {name:"", inhaber:"", strasse:"", ort:"", tel:"", mail:"", stnr:""};
+const FF = Object.keys(F);
+
+const DATA = [
+ {t:"Anfahrt", items:[
+  {id:"anf_p", n:"Anfahrtspauschale", type:"fix", v:[15]},
+  {id:"anf_km", n:"Fahrtkosten nach km", d:"km einfach, Hin- und Rückweg wird verdoppelt", type:"km", v:[10]},
+  {id:"anf_zeit", n:"Fahrzeit", d:"Minuten gesamt × Stundensatz", type:"min", v:[30]},
+  {id:"anf_park", n:"Parkgebühren", type:"fix", v:[5]},
+ ]},
+ {t:"Arbeitszeit", items:[
+  {id:"az_h", n:"Arbeitsstunden vor Ort", type:"h", v:[2]},
+  {id:"az_helfer", n:"Helfer / zweiter Mann", d:"Stunden × Helfersatz", type:"hh", v:[2]},
+  {id:"az_ruest", n:"Rüstzeit", d:"Aufbauen, Abdecken, Aufräumen (Minuten)", type:"min", v:[20]},
+  {id:"az_min", n:"Mindestpauschale Kleinauftrag", type:"fix", v:[40]},
+ ]},
+ {t:"Material", items:[
+  {id:"mat_ek", n:"Material laut Einkaufsbeleg", d:"Einkaufspreis, Aufschlag wird addiert", type:"mat", v:[50]},
+  {id:"mat_zeit", n:"Materialbesorgung", d:"Baumarkt-/Großhandelsfahrt (Minuten)", type:"min", v:[45]},
+  {id:"mat_klein", n:"Kleinteile", d:"Schrauben, Dübel, Klemmen, Kabelbinder, Silikon", type:"fix", v:[8]},
+  {id:"mat_versch", n:"Verschleißteile", d:"Bohrer, Trennscheiben, Schleifpapier, Mähfaden, Rollen, Klebeband", type:"fix", v:[10]},
+  {id:"mat_schutz", n:"Abdeckmaterial", d:"Folie, Malervlies, Abklebeband", type:"fix", v:[12]},
+ ]},
+ {t:"Geräte und Maschinen", items:[
+  {id:"ger_eigen", n:"Eigene Maschinen", d:"Rasenmäher, Heckenschere, Freischneider (Stunden × €/h)", type:"menge", v:[2,8], u:["h","€/h"]},
+  {id:"ger_miete", n:"Mietgerät", d:"z. B. Vertikutierer, Häcksler, Bohrhammer", type:"fix", v:[40]},
+  {id:"ger_geruest", n:"Leiter / Rollgerüst", type:"fix", v:[25]},
+  {id:"ger_sprit", n:"Kraftstoff / Öl", type:"fix", v:[6]},
+ ]},
+ {t:"Erschwernisse", note:"% auf Arbeitslohn", items:[
+  {id:"er_hoehe", n:"Arbeiten in Höhe", d:"über 2 m, Leiter oder Gerüst", type:"zuschlag", v:[15]},
+  {id:"er_schmutz", n:"Starke Verschmutzung", type:"zuschlag", v:[20]},
+  {id:"er_zugang", n:"Schwer zugänglich", d:"enge Räume, Dachboden, Keller, kein Stellplatz", type:"zuschlag", v:[10]},
+  {id:"er_altbau", n:"Altbau / unbekannter Bestand", d:"alte Leitungen, bröselige Wände", type:"zuschlag", v:[15]},
+  {id:"er_wetter", n:"Witterung", d:"Hitze, Kälte, Nässe", type:"zuschlag", v:[10]},
+  {id:"er_eil", n:"Eilauftrag", type:"zuschlag", v:[25]},
+  {id:"er_abend", n:"Abendarbeit", d:"nach 18 Uhr", type:"zuschlag", v:[25]},
+  {id:"er_sa", n:"Samstag", type:"zuschlag", v:[25]},
+  {id:"er_so", n:"Sonn- und Feiertag", type:"zuschlag", v:[50]},
+ ]},
+ {t:"Entsorgung", items:[
+  {id:"ent_gruen", n:"Grünschnitt", type:"menge", v:[1,25], u:["m³","€/m³"]},
+  {id:"ent_schutt", n:"Bauschutt / Sperrmüll", type:"menge", v:[1,60], u:["m³","€/m³"]},
+  {id:"ent_fahrt", n:"Entsorgungsfahrt", d:"zum Wertstoffhof (Minuten)", type:"min", v:[40]},
+ ]},
+ {t:"Sonstiges", items:[
+  {id:"so_1", n:"Freier Posten", type:"fix", v:[0], free:true},
+  {id:"so_2", n:"Freier Posten", type:"fix", v:[0], free:true},
+ ]},
+];
+
+const ITEM = {};
+DATA.forEach(g=>g.items.forEach(i=>ITEM[i.id]=i));
+const ERSCHW = DATA.find(g=>g.t==="Erschwernisse").items.map(i=>i.id);
+
+// So sieht der Kunde die Posten: zusammengefasst
+const KUNDE_GRUPPEN = [
+ {label:()=>{
+    let h=0;
+    if(state.az_h.on) h+=Number(state.az_h.v[0])||0;
+    if(state.az_helfer.on) h+=Number(state.az_helfer.v[0])||0;
+    return h>0 ? `Arbeitsleistung vor Ort (ca. ${fmtNum(h)} Arbeitsstunden)` : "Arbeitsleistung vor Ort";
+  }, ids:["az_h","az_helfer","az_ruest","az_min",...ERSCHW]},
+ {label:()=>"Material inkl. Kleinteile und Beschaffung", ids:["mat_ek","mat_zeit","mat_klein","mat_versch","mat_schutz"]},
+ {label:()=>"Maschinen- und Geräteeinsatz", ids:["ger_eigen","ger_miete","ger_geruest","ger_sprit"]},
+ {label:()=>"Anfahrt", ids:["anf_p","anf_km","anf_zeit","anf_park"]},
+ {label:()=>"Entsorgung", ids:["ent_gruen","ent_schutt","ent_fahrt"]},
+];
+
+const eur = x => x.toLocaleString("de-DE",{style:"currency",currency:"EUR"});
+const eurPdf = x => x.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2}) + " EUR";
+const fmtNum = x => x.toLocaleString("de-DE",{maximumFractionDigits:1});
+const pad = n => String(n).padStart(2,"0");
+const $ = id => document.getElementById(id);
+
+const state = {};
+DATA.forEach(g=>g.items.forEach(i=>state[i.id]={on:false,v:[...i.v],label:i.n}));
+
+function unitsFor(i){
+  switch(i.type){
+    case "fix": return ["€"];
+    case "km": return ["km"];
+    case "min": return ["min"];
+    case "h": case "hh": return ["h"];
+    case "mat": return ["€ EK"];
+    case "zuschlag": return ["%"];
+    default: return i.u;
+  }
+}
+
+function render(){
+  const app = $("app");
+  app.innerHTML = "";
+  DATA.forEach((g,gi)=>{
+    const sec = document.createElement("section");
+    sec.innerHTML = `<h2>${g.t}${g.note?` <small style="font-weight:400;color:var(--muted);font-size:.8rem">(${g.note})</small>`:""}<span id="gs${gi}"></span></h2>`;
+    g.items.forEach(i=>{
+      const st = state[i.id];
+      const row = document.createElement("div");
+      row.className = "row"; row.id = "r_"+i.id;
+      const nameHtml = i.free
+        ? `<input type="text" data-l="${i.id}" placeholder="Bezeichnung" style="width:100%">`
+        : `<label for="c_${i.id}">${i.n}${i.d?`<small>${i.d}</small>`:""}</label>`;
+      const inp = unitsFor(i).map((u,k)=>`<span><input type="number" step="any" min="0" data-id="${i.id}" data-k="${k}" value="${st.v[k]}" aria-label="${i.n} ${u}"> ${u}</span>`).join("");
+      row.innerHTML = `<input type="checkbox" id="c_${i.id}" data-c="${i.id}"><div class="name">${nameHtml}</div><div class="amt" id="a_${i.id}">–</div><div class="inputs">${inp}</div>`;
+      sec.appendChild(row);
+    });
+    app.appendChild(sec);
+  });
+}
+
+function lineValue(i, lohnBasis){
+  const v = state[i.id].v.map(Number);
+  switch(i.type){
+    case "fix": return v[0];
+    case "km": return v[0]*2*S.km;
+    case "min": return v[0]/60*S.lohn;
+    case "h": return v[0]*S.lohn;
+    case "hh": return v[0]*S.helfer;
+    case "mat": return v[0]*(1+S.aufschlag/100);
+    case "menge": return v[0]*v[1];
+    case "zuschlag": return lohnBasis*v[0]/100;
+  }
+  return 0;
+}
+
+function lohnBasis(){
+  let l = 0;
+  ["az_h","az_helfer","az_ruest"].forEach(id=>{ if(state[id].on) l += lineValue(ITEM[id],0)||0; });
+  return l;
+}
+
+function calc(){
+  const lohn = lohnBasis();
+  let net = 0;
+  DATA.forEach((g,gi)=>{
+    let gs = 0;
+    g.items.forEach(i=>{
+      const val = lineValue(i,lohn) || 0;
+      const on = state[i.id].on;
+      $("a_"+i.id).textContent = on ? eur(val) : "–";
+      $("r_"+i.id).classList.toggle("on",on);
+      if(on) gs += val;
+    });
+    $("gs"+gi).textContent = gs ? eur(gs) : "";
+    net += gs;
+  });
+  const mw = S.mwst ? net*0.19 : 0;
+  $("sub").textContent = "Netto " + eur(net);
+  $("mw").textContent = S.mwst ? "inkl. 19 % MwSt. " + eur(mw) : "ohne MwSt.";
+  $("sum").textContent = eur(net+mw);
+  return {net,mw,lohn};
+}
+
+function customerLines(){
+  const lohn = lohnBasis();
+  const val = id => state[id].on ? (lineValue(ITEM[id],lohn)||0) : 0;
+  const lines = [];
+  KUNDE_GRUPPEN.forEach(g=>{
+    const sum = g.ids.reduce((a,id)=>a+val(id),0);
+    if(sum>0) lines.push({text:g.label(), amount:sum});
+  });
+  ["so_1","so_2"].forEach(id=>{ const v=val(id); if(v>0) lines.push({text:state[id].label, amount:v}); });
+  return lines;
+}
+
+function readFirm(){ FF.forEach(k=>F[k]=$("f_"+k).value.trim()); }
+function fillFirm(){ FF.forEach(k=>$("f_"+k).value=F[k]||""); }
+
+function meta(){
+  const g = id => $(id).value.trim();
+  const tage = parseInt(g("m_tage"))||30;
+  const heute = new Date();
+  const bis = new Date(heute.getTime()+tage*864e5);
+  return {typ:g("m_typ"), nr:g("m_nr"), kname:g("k_name"), kstr:g("k_strasse"), kort:g("k_ort"),
+          auftrag:g("m_auftrag"), text:g("m_text"),
+          datum:heute.toLocaleDateString("de-DE"), bis:bis.toLocaleDateString("de-DE")};
+}
+
+function newNumber(){
+  const d = new Date();
+  $("m_nr").value = `A-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+}
+
+function toast(t){const e=$("toast");e.textContent=t;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",2800);}
+
+function buildPdf(){
+  if(!window.jspdf){ toast("Für das PDF wird Internet gebraucht. Bitte Verbindung prüfen."); return null; }
+  readFirm();
+  const m = meta();
+  const lines = customerLines();
+  if(!lines.length){ toast("Bitte zuerst Posten ankreuzen"); return null; }
+  const net = lines.reduce((a,l)=>a+l.amount,0);
+  const mw = S.mwst ? net*0.19 : 0;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:"mm",format:"a4"});
+  const L = 20, R = 190;
+  const ang = m.typ === "Angebot";
+
+  // Firmenkopf rechts oben
+  let y = 20;
+  doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.setTextColor(31,58,147);
+  doc.text(F.name || F.inhaber || "Firmenname", R, y, {align:"right"});
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(70);
+  [F.name ? F.inhaber : "", F.strasse, F.ort, F.tel ? "Tel. "+F.tel : "", F.mail].filter(Boolean)
+    .forEach((t,i)=>doc.text(t, R, y+6+i*4.5, {align:"right"}));
+
+  // Absenderzeile und Empfänger
+  y = 52;
+  doc.setFontSize(7); doc.setTextColor(120);
+  const abs = [F.name || F.inhaber, F.strasse, F.ort].filter(Boolean).join(", ");
+  if(abs) doc.text(abs, L, y);
+  doc.setFontSize(11); doc.setTextColor(30);
+  [m.kname, m.kstr, m.kort].filter(Boolean).forEach((t,i)=>doc.text(t, L, y+7+i*5.5));
+
+  // Infoblock rechts
+  doc.setFontSize(9.5);
+  [["Datum:", m.datum], ["Nr.:", m.nr || "-"], ["Gültig bis:", m.bis]].forEach((r,i)=>{
+    doc.setTextColor(120); doc.text(r[0], 145, y+7+i*5.5);
+    doc.setTextColor(30); doc.text(r[1], R, y+7+i*5.5, {align:"right"});
+  });
+
+  // Titel
+  y = 95;
+  doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(31,58,147);
+  const title = doc.splitTextToSize(m.typ + (m.auftrag ? ": " + m.auftrag : ""), R-L);
+  doc.text(title, L, y); y += title.length*7 + 3;
+
+  // Anschreiben
+  doc.setFont("helvetica","normal"); doc.setFontSize(10.5); doc.setTextColor(30);
+  doc.text(m.kname ? `Guten Tag ${m.kname},` : "Guten Tag,", L, y); y += 7;
+  const intro = doc.splitTextToSize("vielen Dank für Ihre Anfrage. " + (ang ? "Gerne biete ich Ihnen folgende Leistungen an:" : "Für die folgenden Leistungen rechne ich mit diesen Kosten:"), R-L);
+  doc.text(intro, L, y); y += intro.length*5 + 2;
+  if(m.text){
+    const t = doc.splitTextToSize(m.text, R-L);
+    doc.setTextColor(70); doc.text(t, L, y); y += t.length*5 + 2; doc.setTextColor(30);
+  }
+
+  // Tabelle
+  y += 5;
+  doc.setFillColor(238,241,248); doc.rect(L, y-5.5, R-L, 8, "F");
+  doc.setFont("helvetica","bold"); doc.setFontSize(10);
+  doc.text("Pos.", L+2, y); doc.text("Leistung", L+16, y); doc.text("Betrag", R-2, y, {align:"right"});
+  y += 9;
+  doc.setFont("helvetica","normal"); doc.setDrawColor(215);
+  lines.forEach((l,i)=>{
+    const t = doc.splitTextToSize(l.text, 120);
+    if(y + t.length*5 > 260){ doc.addPage(); y = 25; }
+    doc.text(String(i+1), L+2, y);
+    doc.text(t, L+16, y);
+    doc.text(eurPdf(l.amount), R-2, y, {align:"right"});
+    y += (t.length-1)*5 + 3.5;
+    doc.line(L, y, R, y);
+    y += 6;
+  });
+
+  // Summen
+  y += 1;
+  const tot = (label, val, bold) => {
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.text(label, 118, y); doc.text(eurPdf(val), R-2, y, {align:"right"}); y += 6;
+  };
+  if(S.mwst){
+    tot("Nettobetrag", net); tot("zzgl. 19 % MwSt.", mw);
+    doc.setDrawColor(31,58,147); doc.line(116, y-4, R, y-4); y += 1.5;
+  }
+  doc.setFontSize(11.5); tot("Gesamtbetrag", net+mw, true); doc.setFontSize(10);
+
+  // Schluss
+  y += 6;
+  doc.setFont("helvetica","normal"); doc.setTextColor(30);
+  const s = [];
+  if(!S.mwst) s.push("Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.");
+  if(!ang) s.push("Dieser Kostenvoranschlag ist eine Schätzung der voraussichtlichen Kosten.");
+  s.push((ang ? "Dieses Angebot" : "Dieser Kostenvoranschlag") + ` gilt bis zum ${m.bis}.`);
+  s.push("Bei Fragen erreichen Sie mich " + (F.tel ? "unter " + F.tel : "jederzeit") + ".");
+  const st = doc.splitTextToSize(s.join(" "), R-L);
+  if(y + st.length*5 + 30 > 278){ doc.addPage(); y = 25; }
+  doc.text(st, L, y); y += st.length*5 + 9;
+  doc.text("Mit freundlichen Grüßen", L, y); y += 12;
+  const sig = F.inhaber || F.name;
+  if(sig) doc.text(sig, L, y);
+
+  // Fußzeile auf jeder Seite
+  const fuss = [F.name || F.inhaber, F.tel ? "Tel. "+F.tel : "", F.mail, F.stnr ? "St.-Nr. "+F.stnr : ""].filter(Boolean).join("   |   ");
+  const pages = doc.getNumberOfPages();
+  for(let p=1; p<=pages; p++){
+    doc.setPage(p); doc.setFontSize(8); doc.setTextColor(120); doc.setDrawColor(200);
+    doc.line(L, 281, R, 281);
+    if(fuss) doc.text(fuss, 105, 286, {align:"center"});
+  }
+  return {doc, m};
+}
+
+async function sharePdf(){
+  const r = buildPdf();
+  if(!r) return;
+  const fname = (r.m.typ + "_" + (r.m.nr || "ohne-Nummer")).replace(/[^\wäöüÄÖÜß\-]/g,"_") + ".pdf";
+  const file = new File([r.doc.output("blob")], fname, {type:"application/pdf"});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title:fname}); return; }
+    catch(e){ if(e.name === "AbortError") return; }
+  }
+  try{ r.doc.save(fname); toast("PDF gespeichert. In WhatsApp über Büroklammer > Dokument anhängen."); }
+  catch(e){ toast("PDF konnte hier nicht gespeichert werden."); }
+}
+
+function whatsapp(){
+  readFirm();
+  const m = meta();
+  const lines = customerLines();
+  if(!lines.length){ toast("Bitte zuerst Posten ankreuzen"); return; }
+  const net = lines.reduce((a,l)=>a+l.amount,0);
+  const mw = S.mwst ? net*0.19 : 0;
+  const t = [];
+  t.push(m.kname ? `Guten Tag ${m.kname},` : "Guten Tag,", "");
+  t.push(`hier mein ${m.typ} Nr. ${m.nr || "-"} vom ${m.datum}` + (m.auftrag ? ` für: ${m.auftrag}` : "") + ".");
+  if(m.text) t.push(m.text);
+  t.push("");
+  lines.forEach((l,i)=>t.push(`${i+1}. ${l.text}: ${eur(l.amount)}`));
+  t.push("");
+  if(S.mwst) t.push(`Netto: ${eur(net)}`, `zzgl. 19 % MwSt.: ${eur(mw)}`);
+  t.push(`Gesamt: ${eur(net+mw)}`);
+  if(!S.mwst) t.push("Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.");
+  t.push(`Gültig bis ${m.bis}.`, "");
+  const sig = [...new Set([F.inhaber, F.name, F.tel].filter(Boolean))];
+  t.push("Viele Grüße", ...sig);
+  const txt = t.join("\n");
+  const w = window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
+  if(!w){
+    if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(()=>toast("Text kopiert, jetzt in WhatsApp einfügen")).catch(()=>prompt("Text kopieren:", txt)); }
+    else prompt("Text kopieren:", txt);
+  }
+}
+
+function bindSettings(){
+  ["lohn","helfer","km","aufschlag"].forEach(k=>{
+    const el=$("s_"+k); el.value=S[k];
+    el.addEventListener("input",()=>{S[k]=Number(el.value)||0;calc();});
+  });
+  const m=$("s_mwst"); m.checked=S.mwst;
+  m.addEventListener("change",()=>{S.mwst=m.checked;calc();});
+}
+
+document.addEventListener("input",e=>{
+  const id=e.target.dataset.id;
+  if(id){
+    state[id].v[+e.target.dataset.k]=e.target.value;
+    if(e.target.value!=="" && !state[id].on){ state[id].on=true; $("c_"+id).checked=true; }
+    calc();
+  }
+  if(e.target.dataset.l){ state[e.target.dataset.l].label = e.target.value || "Weitere Leistung"; }
+});
+document.addEventListener("change",e=>{
+  const id=e.target.dataset.c;
+  if(id){ state[id].on=e.target.checked; calc(); }
+});
+
+$("pdf").onclick = sharePdf;
+$("pdf2").onclick = sharePdf;
+$("wa").onclick = whatsapp;
+
+$("reset").onclick = ()=>{
+  Object.keys(state).forEach(k=>{ state[k].on=false; const c=$("c_"+k); if(c) c.checked=false; });
+  ["k_name","k_strasse","k_ort","m_auftrag","m_text"].forEach(id=>$(id).value="");
+  newNumber(); calc(); window.scrollTo(0,0); toast("Neuer Auftrag angelegt");
+};
+
+const KEY = "auftragsrechner:einstellungen";
+function speichern(){
+  readFirm();
+  try{ localStorage.setItem(KEY, JSON.stringify({S,F})); return true; }catch(e){ return false; }
+}
+$("save").onclick = ()=>{ toast(speichern() ? "Sätze und Firmendaten gespeichert" : "Speichern nicht möglich"); };
+
+(()=>{
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){ const d = JSON.parse(raw); Object.assign(S, d.S||{}); Object.assign(F, d.F||{}); }
+  }catch(e){ /* noch nichts gespeichert */ }
+  render(); bindSettings(); fillFirm(); newNumber(); calc();
+})();
+if("serviceWorker" in navigator){ window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
+</script>
+</body>
+</html>
